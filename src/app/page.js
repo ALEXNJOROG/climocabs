@@ -1,6 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import emailjs from '@emailjs/browser';
+
+// ─── EMAILJS CONFIG ───────────────────────────────────────────────────────────
+const EMAILJS_SERVICE_ID  = 'service_ae1zdor';
+const EMAILJS_TEMPLATE_ID = 'template_vtus8kz';
+const EMAILJS_PUBLIC_KEY  = '5hQXAMhp_ufmUexkL';
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const WHATSAPP_NUMBER = '254723930123';
@@ -530,12 +536,9 @@ const VehicleCard = ({ vehicle, index }) => {
   );
 };
 
-// ─── STANDALONE FIELD COMPONENTS (defined OUTSIDE QuoteForm to prevent remount) ──
-// These must be outside QuoteForm so React doesn't recreate them on every render.
-
+// ─── STANDALONE FIELD COMPONENTS ─────────────────────────────────────────────
 const TextField = ({ label, fieldKey, value, onChange, type, placeholder, error, half }) => {
   const [focused, setFocused] = useState(false);
-
   return (
     <div style={half ? {} : S.formGroup}>
       <label style={{ ...S.label, color: error ? '#EF4444' : '#0D1B2A' }}>{label}</label>
@@ -554,7 +557,6 @@ const TextField = ({ label, fieldKey, value, onChange, type, placeholder, error,
 
 const TextAreaField = ({ label, fieldKey, value, onChange, rows, placeholder, error }) => {
   const [focused, setFocused] = useState(false);
-
   return (
     <div style={S.formGroup}>
       <label style={S.label}>{label}</label>
@@ -573,7 +575,6 @@ const TextAreaField = ({ label, fieldKey, value, onChange, rows, placeholder, er
 
 const SelectField = ({ label, fieldKey, value, onChange, options, placeholder, error }) => {
   const [focused, setFocused] = useState(false);
-
   return (
     <div style={S.formGroup}>
       <label style={S.label}>{label}</label>
@@ -606,7 +607,6 @@ const QuoteForm = () => {
   const [sendError, setSendError] = useState('');
   const [hovering,  setHovering]  = useState(false);
 
-  // Stable onChange handler — won't change between renders
   const handleChange = useCallback((key, val) => {
     setForm(f => ({ ...f, [key]: val }));
     setErrors(e => ({ ...e, [key]: false }));
@@ -633,61 +633,10 @@ const QuoteForm = () => {
     return e;
   };
 
-  // Build a mailto link with all form data as the email body
-  const buildMailtoLink = () => {
-    const subject = encodeURIComponent(`Car Hire Quote Request – ${form.firstName} ${form.lastName}`);
-    const body = encodeURIComponent(
-`CLIMO TRAVELS & CAR HIRE — QUOTE REQUEST
-==========================================
-
-CONTACT DETAILS
----------------
-Name:         ${form.firstName} ${form.lastName}
-Email:        ${form.email}
-Phone:        ${form.phone}
-Organisation: ${form.business || 'N/A'}
-
-TRIP DETAILS
-------------
-Date of Travel:  ${form.dateTravel}
-Date of Return:  ${form.dateReturn}
-Pick-up:         ${form.pickup}
-Destination:     ${form.destination}
-Number of Days:  ${form.days || 'N/A'}
-Travellers:      ${form.travellers || 'N/A'}
-Event Type:      ${form.eventType || 'N/A'}
-
-VEHICLE PREFERENCES
--------------------
-${form.carTypes.length ? form.carTypes.map(c => `• ${c}`).join('\n') : 'Not specified'}
-
-ITINERARY
----------
-${form.itinerary || 'N/A'}
-
-SPECIAL INSTRUCTIONS
---------------------
-${form.instructions || 'N/A'}
-
-BUDGET
-------
-${form.budget || 'N/A'}
-
-HOW THEY FOUND US
------------------
-${form.referral || 'N/A'}
-`
-    );
-    return `mailto:${EMAIL_ADDRESS}?subject=${subject}&body=${body}`;
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) {
       setErrors(e);
-      // Scroll to first error
-      const firstErr = document.querySelector('[data-error="true"]');
-      if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -695,18 +644,35 @@ ${form.referral || 'N/A'}
     setSendError('');
 
     try {
-      // Open the mailto link — this triggers the user's email client pre-filled
-      const mailtoLink = buildMailtoLink();
-      window.location.href = mailtoLink;
-
-      // Show success after a short delay
-      setTimeout(() => {
-        setSending(false);
-        setSubmitted(true);
-      }, 800);
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          from_name:    `${form.firstName} ${form.lastName}`,
+          from_email:   form.email,
+          phone:        form.phone,
+          business:     form.business || 'N/A',
+          date_travel:  form.dateTravel,
+          date_return:  form.dateReturn,
+          pickup:       form.pickup,
+          destination:  form.destination,
+          days:         form.days || 'N/A',
+          travellers:   form.travellers || 'N/A',
+          event_type:   form.eventType || 'N/A',
+          car_types:    form.carTypes.length ? form.carTypes.join(', ') : 'Not specified',
+          itinerary:    form.itinerary || 'N/A',
+          instructions: form.instructions || 'N/A',
+          budget:       form.budget || 'N/A',
+          referral:     form.referral || 'N/A',
+        },
+        EMAILJS_PUBLIC_KEY
+      );
+      setSubmitted(true);
     } catch (err) {
+      console.error('EmailJS error:', err);
+      setSendError('Failed to send your request. Please try again or email us directly at ' + EMAIL_ADDRESS);
+    } finally {
       setSending(false);
-      setSendError('Something went wrong. Please email us directly at ' + EMAIL_ADDRESS);
     }
   };
 
@@ -715,19 +681,21 @@ ${form.referral || 'N/A'}
       <div style={S.successIcon}>✓</div>
       <h3 style={S.successTitle}>Request Sent!</h3>
       <p style={S.successText}>
-        Your email client has been opened with all your details. Please send the email to complete your request.
-        We'll get back to you with a quote as soon as possible.
+        Thank you! Your quote request has been sent directly to our team.
+        We'll get back to you as soon as possible with a quote.
       </p>
       <p style={{ marginTop: '16px', fontSize: '0.88rem', color: '#9CA3AF' }}>
-        Alternatively, reach us directly at{' '}
-        <a href={`mailto:${EMAIL_ADDRESS}`} style={{ color: '#E87722' }}>{EMAIL_ADDRESS}</a>
+        Need urgent help? Reach us on{' '}
+        <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer"
+           style={{ color: '#25D366', fontWeight: 600 }}>WhatsApp</a>
+        {' '}or call{' '}
+        <a href={`tel:${PHONE_NUMBER}`} style={{ color: '#E87722', fontWeight: 600 }}>{PHONE_NUMBER}</a>
       </p>
     </div>
   );
 
   return (
     <div style={S.formWrap}>
-      {/* Row: First + Last name */}
       <div className="form-row" style={S.formRow}>
         <TextField label="First Name*" fieldKey="firstName" value={form.firstName} onChange={handleChange}
           placeholder="John" error={errors.firstName} half />
@@ -735,7 +703,6 @@ ${form.referral || 'N/A'}
           placeholder="Doe" error={errors.lastName} half />
       </div>
 
-      {/* Row: Email + Phone */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Email*" fieldKey="email" value={form.email} onChange={handleChange}
           type="email" placeholder="john@example.com" error={errors.email} half />
@@ -743,11 +710,9 @@ ${form.referral || 'N/A'}
           placeholder="+254 7XX XXX XXX" error={errors.phone} half />
       </div>
 
-      {/* Business */}
       <TextField label="Business / Organization" fieldKey="business" value={form.business} onChange={handleChange}
         placeholder="If not corporate, indicate it's for personal use" error={false} />
 
-      {/* Dates */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Date of Travel*" fieldKey="dateTravel" value={form.dateTravel} onChange={handleChange}
           type="date" error={errors.dateTravel} half />
@@ -755,9 +720,8 @@ ${form.referral || 'N/A'}
           type="date" error={errors.dateReturn} half />
       </div>
 
-      {/* Car types checkboxes */}
       <div style={S.formGroup}>
-        <label style={S.label}>Type of car to hire*</label>
+        <label style={S.label}>Type of car to hire</label>
         <div className="checkbox-grid" style={S.checkboxGrid}>
           {CAR_TYPE_OPTIONS.map(opt => (
             <label key={opt} style={S.checkboxLabel}>
@@ -773,20 +737,16 @@ ${form.referral || 'N/A'}
         </div>
       </div>
 
-      {/* Event type */}
       <SelectField label="Type of event" fieldKey="eventType" value={form.eventType} onChange={handleChange}
         options={EVENT_TYPES} placeholder="Please Select" error={errors.eventType} />
 
-      {/* Pickup */}
       <TextField label="Pick-up location*" fieldKey="pickup" value={form.pickup} onChange={handleChange}
         placeholder="Town, building, street address" error={errors.pickup} />
 
-      {/* Destination */}
       <TextField label="Destination*" fieldKey="destination" value={form.destination} onChange={handleChange}
         placeholder="Town, Village, Government Institution. Share WhatsApp / Google pin if possible"
         error={errors.destination} />
 
-      {/* Days + Travellers */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Number of days" fieldKey="days" value={form.days} onChange={handleChange}
           type="number" placeholder="e.g. 3" error={false} half />
@@ -794,23 +754,18 @@ ${form.referral || 'N/A'}
           type="number" placeholder="e.g. 4" error={false} half />
       </div>
 
-      {/* Itinerary */}
-      <TextAreaField label="Proposed Travel Itinerary*" fieldKey="itinerary" value={form.itinerary}
+      <TextAreaField label="Proposed Travel Itinerary" fieldKey="itinerary" value={form.itinerary}
         onChange={handleChange} rows={4} placeholder="Indicate a detailed travel plan" error={errors.itinerary} />
 
-      {/* Instructions */}
       <TextAreaField label="Your instructions and specifications" fieldKey="instructions" value={form.instructions}
         onChange={handleChange} rows={3} error={false} />
 
-      {/* Budget */}
       <TextField label="Your budget" fieldKey="budget" value={form.budget} onChange={handleChange}
         placeholder="USD ($) or KES (/=)" error={false} />
 
-      {/* Referral */}
       <SelectField label="How did you learn about us" fieldKey="referral" value={form.referral}
         onChange={handleChange} options={REFERRAL_OPTS} placeholder="Please Select" error={false} />
 
-      {/* T&C checkbox */}
       <label style={{ ...S.checkboxLabel, marginBottom: '28px', alignItems: 'flex-start', gap: '12px' }}>
         <input
           type="checkbox"
@@ -828,7 +783,6 @@ ${form.referral || 'N/A'}
         </span>
       </label>
 
-      {/* Error banner */}
       {sendError && (
         <div style={{ marginBottom: '16px', padding: '14px 18px', background: '#FEE2E2',
           borderRadius: '10px', color: '#B91C1C', fontSize: '0.9rem', fontWeight: 500 }}>
@@ -836,7 +790,6 @@ ${form.referral || 'N/A'}
         </div>
       )}
 
-      {/* Submit */}
       <button
         onClick={handleSubmit}
         disabled={sending}
@@ -850,11 +803,22 @@ ${form.referral || 'N/A'}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
-        {sending ? 'Opening email client…' : <><IconSend /> Submit Request</>}
+        {sending ? (
+          <>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              style={{ animation: 'spin 0.8s linear infinite' }}>
+              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+            </svg>
+            Sending your request…
+          </>
+        ) : (
+          <><IconSend /> Submit Request</>
+        )}
       </button>
 
       <p style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.82rem', color: '#9CA3AF' }}>
-        Clicking submit will open your email client with all details pre-filled.
+        Your details will be sent directly to our team — no email client needed.
       </p>
     </div>
   );
@@ -883,6 +847,10 @@ const CarHirePage = () => {
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #F8F7F4; }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
         @keyframes particleFloat {
           0%   { transform: translateY(0) scale(1); opacity: 0; }
           10%  { opacity: 0.8; }
@@ -935,19 +903,16 @@ const CarHirePage = () => {
         {/* ── NAV ── */}
         <nav className="nav-wrap" style={S.nav(scrolled)}>
           <div style={S.navInner}>
-            {/* LOGO — enlarged for visibility */}
             <img
               src="/logos/climologo3.png"
               alt="Climo Travels & Car Hire"
               style={{ height: '80px', width: 'auto', objectFit: 'contain', display: 'block' }}
               onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
             />
-            {/* Fallback text logo */}
             <div style={{ display: 'none', flexDirection: 'column' }}>
               <span style={S.logoText}>CLIMO</span>
               <span style={S.logoSub}>TRAVELS &amp; CAR HIRE</span>
             </div>
-
             <div style={S.navLinks}>
               <a href="#" style={S.navLink(true)}>Car Hire</a>
               <a href="/safaris" style={S.navLink(false)}
@@ -962,12 +927,8 @@ const CarHirePage = () => {
         {/* ── HERO ── */}
         <section style={S.hero}>
           <div style={S.heroBgGradient} />
-          <img
-            src="/images/climohero.jpg"
-            alt=""
-            style={S.heroBgImage}
-            onError={e => { e.target.style.display = 'none'; }}
-          />
+          <img src="/images/climohero.jpg" alt="" style={S.heroBgImage}
+            onError={e => { e.target.style.display = 'none'; }} />
           <div style={S.heroOverlay} />
 
           {[...Array(10)].map((_, i) => (
@@ -1075,12 +1036,9 @@ const CarHirePage = () => {
         <footer style={S.footer}>
           <div className="footer-grid" style={S.footerInner}>
             <div>
-              <img
-                src="/logos/climologo2.png"
-                alt="Climo Travels"
+              <img src="/logos/climologo2.png" alt="Climo Travels"
                 style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block', borderRadius: '8px' }}
-                onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }}
-              />
+                onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }} />
               <span style={{ ...S.logoText, fontSize: '1.3rem', display: 'none' }}>CLIMO</span>
               <p style={S.footerBrandText}>Ride in Style, Arrive with a Smile</p>
             </div>

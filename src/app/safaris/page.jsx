@@ -1,6 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import emailjs from '@emailjs/browser';
+
+// ─── EMAILJS CONFIG (same account, same service — new template) ───────────────
+const EMAILJS_SERVICE_ID  = 'service_ae1zdor';
+const EMAILJS_TEMPLATE_ID = 'template_vtus8kz'; // ← replace with your new safari template ID
+const EMAILJS_PUBLIC_KEY  = '5hQXAMhp_ufmUexkL';
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const WHATSAPP_NUMBER = '254723930123';
@@ -8,8 +14,6 @@ const EMAIL_ADDRESS   = 'info@climotravels.com';
 const PHONE_NUMBER    = '+254 723 930 123';
 
 // ─── SAFARI PACKAGES DATA ─────────────────────────────────────────────────────
-// Each package now has an `images` array for the slideshow (3 images each).
-// Update these paths to match your actual filenames in /public/images/safari/
 const safariPackages = [
   {
     id: 1,
@@ -138,7 +142,6 @@ const S = {
   scrollDotWrap: { position: 'absolute', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 3 },
   scrollDot: { width: '28px', height: '44px', border: '2px solid rgba(255,255,255,0.35)', borderRadius: '20px', position: 'relative' },
 
-  // PACKAGES SECTION
   packages: { padding: '100px 48px', maxWidth: '1400px', margin: '0 auto' },
   sectionHeader: { textAlign: 'center', marginBottom: '60px' },
   pretitle: { display: 'inline-block', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#E87722', marginBottom: '12px' },
@@ -148,7 +151,6 @@ const S = {
   divBar: (w, o) => ({ display: 'block', height: '3px', borderRadius: '2px', background: '#E87722', width: w, opacity: o }),
   packagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '28px' },
 
-  // CARD
   card: (h, v, d) => ({
     background: '#fff', borderRadius: '16px', overflow: 'hidden',
     boxShadow: h ? '0 20px 60px rgba(0,0,0,0.14)' : '0 4px 24px rgba(0,0,0,0.07)',
@@ -158,7 +160,6 @@ const S = {
     cursor: 'pointer',
   }),
 
-  // SLIDESHOW (mirrors car hire page)
   slideshowWrap: { position: 'relative', height: '230px', overflow: 'hidden', background: '#1B3A1A' },
   slideImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.55s ease, transform 0.55s ease' },
   slideshowPlaceholder: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#1B3A1A,#2E5D2E)' },
@@ -190,14 +191,12 @@ const S = {
     transform: isH ? 'translateY(-2px)' : 'none', transition: 'all 0.2s ease', whiteSpace: 'nowrap',
   }),
 
-  // QUOTE SECTION
   quoteSection: { position: 'relative', padding: '100px 48px', overflow: 'hidden', background: 'linear-gradient(135deg, #0D1B2A 0%, #1A2E42 55%, #7B3010 100%)' },
   quoteInner: { position: 'relative', zIndex: 1, maxWidth: '960px', margin: '0 auto' },
   quoteHeader: { textAlign: 'center', marginBottom: '48px' },
   quoteTitle: { fontFamily: "'Syne', sans-serif", fontSize: 'clamp(1.4rem, 3vw, 2.1rem)', fontWeight: 800, color: '#fff', marginBottom: '14px', lineHeight: 1.3 },
   quoteDesc: { fontSize: '0.92rem', color: 'rgba(255,255,255,0.55)' },
 
-  // FORM
   formWrap: { background: '#fff', borderRadius: '20px', padding: '48px', boxShadow: '0 32px 80px rgba(0,0,0,0.3)' },
   formRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' },
   formGroup: { display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '20px' },
@@ -250,7 +249,7 @@ const IconPhone  = () => <svg width="14" height="14" fill="none" stroke="current
 const IconSend   = () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
 const IconLeaf   = () => <svg width="48" height="48" fill="none" stroke="#4a7c4e" strokeWidth="1.5" viewBox="0 0 64 64"><path d="M32 8 C12 8 8 28 8 48 C28 48 52 44 52 24 C52 14 44 8 32 8Z"/><path d="M8 48 L32 24"/></svg>;
 
-// ─── IMAGE SLIDESHOW (identical pattern to car hire page) ─────────────────────
+// ─── IMAGE SLIDESHOW ──────────────────────────────────────────────────────────
 const ImageSlideshow = ({ images, packageName, badgeLabel, badgeColor, hovered }) => {
   const [current,   setCurrent]   = useState(0);
   const [failedSet, setFailedSet] = useState(new Set());
@@ -276,9 +275,7 @@ const ImageSlideshow = ({ images, packageName, badgeLabel, badgeColor, hovered }
 
   return (
     <div style={S.slideshowWrap}>
-      {/* Location badge */}
       <span style={S.badge(badgeColor)}>{badgeLabel}</span>
-
       {allFailed ? (
         <div style={S.slideshowPlaceholder}>
           <IconLeaf />
@@ -287,37 +284,20 @@ const ImageSlideshow = ({ images, packageName, badgeLabel, badgeColor, hovered }
       ) : (
         <>
           {images.map((src, i) => (
-            <img
-              key={src}
-              src={src}
-              alt={`${packageName} - view ${i + 1}`}
-              style={{
-                ...S.slideImg,
-                opacity: i === current && !failedSet.has(i) ? 1 : 0,
-                transform: i === current ? (hovered ? 'scale(1.06)' : 'scale(1)') : 'scale(1)',
-                zIndex: i === current ? 2 : 1,
-              }}
-              onError={() => setFailedSet(prev => new Set([...prev, i]))}
-            />
+            <img key={src} src={src} alt={`${packageName} - view ${i + 1}`}
+              style={{ ...S.slideImg, opacity: i === current && !failedSet.has(i) ? 1 : 0, transform: i === current ? (hovered ? 'scale(1.06)' : 'scale(1)') : 'scale(1)', zIndex: i === current ? 2 : 1 }}
+              onError={() => setFailedSet(prev => new Set([...prev, i]))} />
           ))}
-
-          {/* Prev / Next arrows — visible on hover */}
           {hovered && (
             <>
               <button style={S.slideArrow('left')}  onClick={e => go(-1, e)} aria-label="Previous image">‹</button>
               <button style={S.slideArrow('right')} onClick={e => go(+1, e)} aria-label="Next image">›</button>
             </>
           )}
-
-          {/* Dot indicators */}
           <div style={S.slideDots}>
             {images.map((_, i) => (
-              <button
-                key={i}
-                style={S.slideDot(i === current)}
-                onClick={e => { e.stopPropagation(); setCurrent(i); }}
-                aria-label={`Go to image ${i + 1}`}
-              />
+              <button key={i} style={S.slideDot(i === current)}
+                onClick={e => { e.stopPropagation(); setCurrent(i); }} aria-label={`Go to image ${i + 1}`} />
             ))}
           </div>
         </>
@@ -347,21 +327,10 @@ const SafariCard = ({ pkg, index }) => {
   ];
 
   return (
-    <div
-      ref={ref}
-      style={S.card(hovered, visible, delay)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Slideshow */}
-      <ImageSlideshow
-        images={pkg.images}
-        packageName={pkg.name}
-        badgeLabel={pkg.location.split(',')[0]}
-        badgeColor={pkg.accent}
-        hovered={hovered}
-      />
-
+    <div ref={ref} style={S.card(hovered, visible, delay)}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <ImageSlideshow images={pkg.images} packageName={pkg.name}
+        badgeLabel={pkg.location.split(',')[0]} badgeColor={pkg.accent} hovered={hovered} />
       <div style={S.cardBody}>
         <h3 style={S.cardTitle}>{pkg.name}</h3>
         <p style={S.cardDesc}>{pkg.description}</p>
@@ -373,8 +342,8 @@ const SafariCard = ({ pkg, index }) => {
         <div style={S.actions}>
           {btns.map((b, i) => (
             <a key={b.label} href={b.href} target={b.target} rel={b.target ? 'noopener noreferrer' : undefined}
-               style={S.btn(b.bg, b.bgH, btnHover === i)}
-               onMouseEnter={() => setBtnHover(i)} onMouseLeave={() => setBtnHover(null)}>
+              style={S.btn(b.bg, b.bgH, btnHover === i)}
+              onMouseEnter={() => setBtnHover(i)} onMouseLeave={() => setBtnHover(null)}>
               <b.Icon /> {b.label}
             </a>
           ))}
@@ -384,21 +353,15 @@ const SafariCard = ({ pkg, index }) => {
   );
 };
 
-// ─── STANDALONE FIELD COMPONENTS (defined OUTSIDE QuoteForm — prevents remount on every keystroke) ──
+// ─── STANDALONE FIELD COMPONENTS ─────────────────────────────────────────────
 const TextField = ({ label, fieldKey, value, onChange, type, placeholder, error, half }) => {
   const [focused, setFocused] = useState(false);
   return (
     <div style={half ? {} : S.formGroup}>
       <label style={{ ...S.label, color: error ? '#EF4444' : '#0D1B2A' }}>{label}</label>
-      <input
-        type={type || 'text'}
-        value={value}
-        onChange={e => onChange(fieldKey, e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={placeholder}
-        style={S.input(error, focused)}
-      />
+      <input type={type || 'text'} value={value} onChange={e => onChange(fieldKey, e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        placeholder={placeholder} style={S.input(error, focused)} />
     </div>
   );
 };
@@ -408,15 +371,10 @@ const TextAreaField = ({ label, fieldKey, value, onChange, rows, placeholder, er
   return (
     <div style={S.formGroup}>
       <label style={S.label}>{label}</label>
-      <textarea
-        rows={rows || 4}
-        value={value}
-        onChange={e => onChange(fieldKey, e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+      <textarea rows={rows || 4} value={value} onChange={e => onChange(fieldKey, e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         placeholder={placeholder}
-        style={{ ...S.input(error, focused), resize: 'vertical', minHeight: rows ? `${rows * 28}px` : '100px' }}
-      />
+        style={{ ...S.input(error, focused), resize: 'vertical', minHeight: rows ? `${rows * 28}px` : '100px' }} />
     </div>
   );
 };
@@ -426,13 +384,9 @@ const SelectField = ({ label, fieldKey, value, onChange, options, placeholder, e
   return (
     <div style={S.formGroup}>
       <label style={S.label}>{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(fieldKey, e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{ ...S.input(error, focused), background: '#FAFAFA' }}
-      >
+      <select value={value} onChange={e => onChange(fieldKey, e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        style={{ ...S.input(error, focused), background: '#FAFAFA' }}>
         <option value="">{placeholder}</option>
         {options.map(o => <option key={o}>{o}</option>)}
       </select>
@@ -449,11 +403,11 @@ const QuoteForm = () => {
     days: '', travellers: '', itinerary: '', instructions: '', budget: '',
     referral: '', agreed: false,
   });
-  const [errors,      setErrors]      = useState({});
-  const [submitted,   setSubmitted]   = useState(false);
-  const [sending,     setSending]     = useState(false);
-  const [sendError,   setSendError]   = useState('');
-  const [hovering,    setHovering]    = useState(false);
+  const [errors,    setErrors]    = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [sending,   setSending]   = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [hovering,  setHovering]  = useState(false);
 
   const handleChange = useCallback((key, val) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -481,54 +435,8 @@ const QuoteForm = () => {
     return e;
   };
 
-  const buildMailtoLink = () => {
-    const subject = encodeURIComponent(`Safari / Tour Quote Request – ${form.firstName} ${form.lastName}`);
-    const body = encodeURIComponent(
-`CLIMO TRAVELS & CAR HIRE — SAFARI / TOUR QUOTE REQUEST
-========================================================
-
-CONTACT DETAILS
----------------
-Name:         ${form.firstName} ${form.lastName}
-Email:        ${form.email}
-Phone:        ${form.phone}
-Organisation: ${form.business || 'N/A'}
-
-TRIP DETAILS
-------------
-Date of Travel:  ${form.dateTravel}
-Date of Return:  ${form.dateReturn}
-Pick-up:         ${form.pickup}
-Destination:     ${form.destination}
-Number of Days:  ${form.days || 'N/A'}
-Travellers:      ${form.travellers || 'N/A'}
-Event Type:      ${form.eventType || 'N/A'}
-
-VEHICLE PREFERENCES
--------------------
-${form.carTypes.length ? form.carTypes.map(c => `• ${c}`).join('\n') : 'Not specified'}
-
-SAFARI ITINERARY
-----------------
-${form.itinerary || 'N/A'}
-
-SPECIAL INSTRUCTIONS
---------------------
-${form.instructions || 'N/A'}
-
-BUDGET
-------
-${form.budget || 'N/A'}
-
-HOW THEY FOUND US
------------------
-${form.referral || 'N/A'}
-`
-    );
-    return `mailto:${EMAIL_ADDRESS}?subject=${subject}&body=${body}`;
-  };
-
-  const handleSubmit = () => {
+  // ── THE KEY CHANGE: EmailJS replaces the old mailto approach ─────────────────
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
 
@@ -536,114 +444,108 @@ ${form.referral || 'N/A'}
     setSendError('');
 
     try {
-      window.location.href = buildMailtoLink();
-      setTimeout(() => {
-        setSending(false);
-        setSubmitted(true);
-      }, 800);
-    } catch {
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          from_name:    `${form.firstName} ${form.lastName}`,
+          from_email:   form.email,
+          phone:        form.phone,
+          business:     form.business || 'N/A',
+          date_travel:  form.dateTravel,
+          date_return:  form.dateReturn,
+          pickup:       form.pickup,
+          destination:  form.destination,
+          days:         form.days || 'N/A',
+          travellers:   form.travellers || 'N/A',
+          event_type:   form.eventType || 'N/A',
+          car_types:    form.carTypes.length ? form.carTypes.join(', ') : 'Not specified',
+          itinerary:    form.itinerary || 'N/A',
+          instructions: form.instructions || 'N/A',
+          budget:       form.budget || 'N/A',
+          referral:     form.referral || 'N/A',
+        },
+        EMAILJS_PUBLIC_KEY
+      );
+      setSubmitted(true);
+    } catch (err) {
+      console.error('EmailJS error:', err);
+      setSendError('Failed to send your request. Please try again or email us directly at ' + EMAIL_ADDRESS);
+    } finally {
       setSending(false);
-      setSendError('Something went wrong. Please email us directly at ' + EMAIL_ADDRESS);
     }
   };
 
   if (submitted) return (
     <div style={S.successWrap}>
       <div style={S.successIcon}>✓</div>
-      <h3 style={{ fontFamily: "'Syne',sans-serif", fontSize: '1.8rem', fontWeight: 800, marginBottom: '12px' }}>Request Sent!</h3>
+      <h3 style={{ fontFamily: "'Syne',sans-serif", fontSize: '1.8rem', fontWeight: 800, marginBottom: '12px' }}>
+        Safari Request Sent!
+      </h3>
       <p style={{ fontSize: '1rem', color: '#6B7280' }}>
-        Your email client has been opened with all your safari details pre-filled. Please send the email to complete your request.
+        Thank you! Your safari quote request has been sent directly to our team.
         We'll get back to you with a tailored quote as soon as possible.
       </p>
       <p style={{ marginTop: '16px', fontSize: '0.88rem', color: '#9CA3AF' }}>
-        Alternatively, reach us directly at{' '}
-        <a href={`mailto:${EMAIL_ADDRESS}`} style={{ color: '#E87722' }}>{EMAIL_ADDRESS}</a>
+        Need urgent help? Reach us on{' '}
+        <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer"
+          style={{ color: '#25D366', fontWeight: 600 }}>WhatsApp</a>
+        {' '}or call{' '}
+        <a href={`tel:${PHONE_NUMBER}`} style={{ color: '#E87722', fontWeight: 600 }}>{PHONE_NUMBER}</a>
       </p>
     </div>
   );
 
   return (
     <div style={S.formWrap}>
-      {/* Name row */}
       <div className="form-row" style={S.formRow}>
         <TextField label="First Name*" fieldKey="firstName" value={form.firstName} onChange={handleChange} placeholder="John" error={errors.firstName} half />
         <TextField label="Last Name*"  fieldKey="lastName"  value={form.lastName}  onChange={handleChange} placeholder="Doe"  error={errors.lastName}  half />
       </div>
-
-      {/* Contact row */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Email*"        fieldKey="email" value={form.email} onChange={handleChange} type="email" placeholder="john@example.com" error={errors.email} half />
         <TextField label="Phone Number*" fieldKey="phone" value={form.phone} onChange={handleChange} placeholder="+254 7XX XXX XXX" error={errors.phone} half />
       </div>
-
-      {/* Business */}
       <TextField label="Business / Organization" fieldKey="business" value={form.business} onChange={handleChange}
         placeholder="If not corporate, indicate it's for personal use" error={false} />
-
-      {/* Dates */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Date of Travel*" fieldKey="dateTravel" value={form.dateTravel} onChange={handleChange} type="date" error={errors.dateTravel} half />
         <TextField label="Date of Return*" fieldKey="dateReturn" value={form.dateReturn} onChange={handleChange} type="date" error={errors.dateReturn} half />
       </div>
-
-      {/* Vehicle preferences */}
       <div style={S.formGroup}>
         <label style={S.label}>Type of vehicle required</label>
         <div className="cb-grid" style={S.checkboxGrid}>
           {CAR_TYPE_OPTIONS.map(opt => (
             <label key={opt} style={S.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={form.carTypes.includes(opt)}
-                onChange={() => toggleCar(opt)}
-                style={{ accentColor: '#E87722', width: '16px', height: '16px', flexShrink: 0, marginTop: '2px' }}
-              />
+              <input type="checkbox" checked={form.carTypes.includes(opt)} onChange={() => toggleCar(opt)}
+                style={{ accentColor: '#E87722', width: '16px', height: '16px', flexShrink: 0, marginTop: '2px' }} />
               {opt}
             </label>
           ))}
         </div>
       </div>
-
-      {/* Event type */}
       <SelectField label="Type of trip / event" fieldKey="eventType" value={form.eventType} onChange={handleChange}
         options={EVENT_TYPES} placeholder="Please Select" error={false} />
-
-      {/* Pickup & Destination */}
       <TextField label="Pick-up location*" fieldKey="pickup" value={form.pickup} onChange={handleChange}
         placeholder="Town, building, street address" error={errors.pickup} />
       <TextField label="Safari destination / park*" fieldKey="destination" value={form.destination} onChange={handleChange}
         placeholder="National Park / Reserve / Town — share a WhatsApp or Google pin if possible" error={errors.destination} />
-
-      {/* Days & Travellers */}
       <div className="form-row" style={S.formRow}>
         <TextField label="Number of days" fieldKey="days" value={form.days} onChange={handleChange} type="number" placeholder="e.g. 3" error={false} half />
         <TextField label="Number of travellers" fieldKey="travellers" value={form.travellers} onChange={handleChange} type="number" placeholder="e.g. 4" error={false} half />
       </div>
-
-      {/* Itinerary */}
-      <TextAreaField label="Proposed Safari Itinerary*" fieldKey="itinerary" value={form.itinerary}
-        onChange={handleChange} rows={4} placeholder="e.g. Day 1: Depart Nairobi → Maasai Mara. Day 2: Morning & evening game drives…" error={errors.itinerary} />
-
-      {/* Instructions */}
+      <TextAreaField label="Proposed Safari Itinerary" fieldKey="itinerary" value={form.itinerary}
+        onChange={handleChange} rows={4} placeholder="e.g. Day 1: Depart Nairobi → Maasai Mara. Day 2: Morning & evening game drives…" error={false} />
       <TextAreaField label="Special instructions or requirements" fieldKey="instructions" value={form.instructions}
         onChange={handleChange} rows={3} placeholder="e.g. dietary needs, accessibility requirements, accommodation preferences" error={false} />
-
-      {/* Budget */}
       <TextField label="Your budget" fieldKey="budget" value={form.budget} onChange={handleChange}
         placeholder="USD ($) or KES (/=)" error={false} />
-
-      {/* Referral */}
       <SelectField label="How did you learn about us" fieldKey="referral" value={form.referral}
         onChange={handleChange} options={REFERRAL_OPTS} placeholder="Please Select" error={false} />
 
-      {/* T&C */}
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '28px', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={form.agreed}
-          onChange={e => handleChange('agreed', e.target.checked)}
-          style={{ accentColor: '#E87722', width: '17px', height: '17px', flexShrink: 0, marginTop: '3px', outline: errors.agreed ? '2px solid #EF4444' : 'none' }}
-        />
+        <input type="checkbox" checked={form.agreed} onChange={e => handleChange('agreed', e.target.checked)}
+          style={{ accentColor: '#E87722', width: '17px', height: '17px', flexShrink: 0, marginTop: '3px', outline: errors.agreed ? '2px solid #EF4444' : 'none' }} />
         <span style={{ fontSize: '0.87rem', color: errors.agreed ? '#EF4444' : '#374151', lineHeight: 1.5 }}>
           By completing this form, you acknowledge and consent to the terms outlined in the{' '}
           <a href="/terms" style={{ color: '#E87722', textDecoration: 'none', fontWeight: 600 }}>Terms &amp; Conditions</a>
@@ -651,32 +553,36 @@ ${form.referral || 'N/A'}
         </span>
       </label>
 
-      {/* Error banner */}
       {sendError && (
         <div style={{ marginBottom: '16px', padding: '14px 18px', background: '#FEE2E2', borderRadius: '10px', color: '#B91C1C', fontSize: '0.9rem', fontWeight: 500 }}>
           {sendError}
         </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={sending}
+      <button onClick={handleSubmit} disabled={sending}
         style={{
           ...S.submitBtn,
           transform: hovering && !sending ? 'translateY(-2px)' : 'none',
           boxShadow: hovering ? '0 12px 36px rgba(232,119,34,0.45)' : '0 6px 24px rgba(232,119,34,0.35)',
-          opacity: sending ? 0.75 : 1,
-          cursor: sending ? 'wait' : 'pointer',
+          opacity: sending ? 0.75 : 1, cursor: sending ? 'wait' : 'pointer',
         }}
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => setHovering(false)}
-      >
-        {sending ? 'Opening email client…' : <><IconSend /> Submit Safari Request</>}
+        onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
+        {sending ? (
+          <>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              style={{ animation: 'spin 0.8s linear infinite' }}>
+              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+            </svg>
+            Sending your request…
+          </>
+        ) : (
+          <><IconSend /> Submit Safari Request</>
+        )}
       </button>
 
       <p style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.82rem', color: '#9CA3AF' }}>
-        Clicking submit will open your email client with all details pre-filled.
+        Your details will be sent directly to our team — no email client needed.
       </p>
     </div>
   );
@@ -708,6 +614,7 @@ const SafarisPage = () => {
         input:focus, select:focus, textarea:focus { outline: none; }
         a { color: inherit; }
         select { appearance: auto; -webkit-appearance: auto; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes particleFloat {
           0%   { transform: translateY(0) scale(1); opacity: 0; }
           10%  { opacity: 0.7; } 90% { opacity: 0.2; }
@@ -739,26 +646,17 @@ const SafarisPage = () => {
         {/* ── NAV ── */}
         <nav className="nav-w" style={S.nav(scrolled)}>
           <div style={S.navInner}>
-            {/* LOGO IMAGE — enlarged for visibility, matching car hire page */}
-            <img
-              src="/logos/climologo3.png"
-              alt="Climo Travels & Car Hire"
+            <img src="/logos/climologo3.png" alt="Climo Travels & Car Hire"
               style={{ height: '80px', width: 'auto', objectFit: 'contain', display: 'block' }}
-              onError={e => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-            {/* Fallback text logo */}
+              onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
             <div style={{ display: 'none', flexDirection: 'column' }}>
               <span style={S.logoText}>CLIMO</span>
               <span style={S.logoSub}>TRAVELS &amp; CAR HIRE</span>
             </div>
-
             <div style={S.navLinks}>
               <a href="/" style={S.navLink(false)}
-                 onMouseEnter={e => { e.target.style.color='#fff'; e.target.style.borderBottomColor='#E87722'; }}
-                 onMouseLeave={e => { e.target.style.color='rgba(255,255,255,0.7)'; e.target.style.borderBottomColor='transparent'; }}>
+                onMouseEnter={e => { e.target.style.color='#fff'; e.target.style.borderBottomColor='#E87722'; }}
+                onMouseLeave={e => { e.target.style.color='rgba(255,255,255,0.7)'; e.target.style.borderBottomColor='transparent'; }}>
                 Car Hire
               </a>
               <a href="/safaris" style={S.navLink(true)}>Safaris &amp; Tours</a>
@@ -771,11 +669,9 @@ const SafarisPage = () => {
           <div style={S.heroBg} />
           <img src="/images/safarihero2.jpg" alt="" style={S.heroBgImg} onError={e => { e.target.style.display='none'; }} />
           <div style={S.heroOverlay} />
-
           {[...Array(10)].map((_, i) => (
             <div key={i} style={{ position: 'absolute', zIndex: 2, pointerEvents: 'none', left: `${8+i*9}%`, bottom: '-10px', width: `${2+(i%3)}px`, height: `${2+(i%3)}px`, background: 'rgba(232,119,34,0.5)', borderRadius: '50%', animation: `particleFloat ${4+i*0.5}s ${i*0.6}s linear infinite` }} />
           ))}
-
           <div className="hero-c" style={S.heroContent(heroVisible)}>
             <span style={S.heroPretitle}>SAFARI &amp; TOURS</span>
             <h1 style={S.heroTitle}>
@@ -791,7 +687,6 @@ const SafarisPage = () => {
               Explore Our Tours <IconArrow />
             </button>
           </div>
-
           <div style={S.scrollDotWrap}>
             <div style={S.scrollDot}><div className="scroll-dot-inner" /></div>
           </div>
@@ -836,7 +731,7 @@ const SafarisPage = () => {
               { bg: '#34E0A1', label: '⬤', title: 'TripAdvisor Reviews', stars: '#34E0A1', btnBg: '#F2A900', btnLabel: 'Leave TripAdvisor Review ↗', href: 'https://tripadvisor.com/your-link',  text: 'Tell the TripAdvisor community about your safari journey with CLIMO Travels & Car Hire.' },
             ].map((r, i) => (
               <a key={r.title} href={r.href} target="_blank" rel="noopener noreferrer" className="review-card"
-                 style={S.reviewCard(rvHover === i)} onMouseEnter={() => setRvHover(i)} onMouseLeave={() => setRvHover(null)}>
+                style={S.reviewCard(rvHover === i)} onMouseEnter={() => setRvHover(i)} onMouseLeave={() => setRvHover(null)}>
                 <div style={S.reviewIcon(r.bg)}>{r.label}</div>
                 <h3 style={{ fontFamily: "'Syne',sans-serif", fontSize: '1.2rem', fontWeight: 700 }}>{r.title}</h3>
                 <div style={{ fontSize: '1.3rem', color: r.stars, letterSpacing: '3px' }}>★★★★★</div>
@@ -851,12 +746,9 @@ const SafarisPage = () => {
         <footer style={S.footer}>
           <div className="footer-grid" style={S.footerInner}>
             <div>
-              <img
-                src="/logos/climologo2.png"
-                alt="Climo Travels"
+              <img src="/logos/climologo2.png" alt="Climo Travels"
                 style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block', borderRadius: '8px' }}
-                onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }}
-              />
+                onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block'; }} />
               <span style={{ ...S.logoText, fontSize: '1.3rem', display: 'none' }}>CLIMO</span>
               <p style={S.footerBrandText}>Ride in Style, Arrive with a Smile</p>
             </div>
